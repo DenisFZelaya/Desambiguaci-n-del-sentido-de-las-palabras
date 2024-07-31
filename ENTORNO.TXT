@@ -1,0 +1,7 @@
+conda create --name pln_act3 python=3.8 
+
+conda activate pln_act3
+
+pip install --user -U nltk
+
+https://github.com/Fer-Bonilla/Master-Inteligencia-Artificial-UNIR/blob/master/Procesamiento%20de%20Lenguaje%20Natural/Desambiguacion_palabras.ipynb
