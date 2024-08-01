@@ -5,3 +5,88 @@ conda activate pln_act3
 pip install --user -U nltk
 
 https://github.com/Fer-Bonilla/Master-Inteligencia-Artificial-UNIR/blob/master/Procesamiento%20de%20Lenguaje%20Natural/Desambiguacion_palabras.ipynb
+
+
+
+def wsd_clasificador(word, features, stopwords_list=STOPWORDS_SET, number=250, distance=2, errors=False, confusion_matrix=False):
+    """
+    Esta función toma como argumentos:
+        una palabra objetivo de senseval2;
+        un conjunto de características (esto puede ser wsd_caracteristicas_palabras_vecinas o wsd_caracteristicas_colocacion);
+        una lista de stopwords;
+        un número (por defecto 250), que determina para wsd_caracteristicas_palabras_vecinas el número de
+            palabras más frecuentes dentro del contexto de un sentido dado que usas para clasificar ejemplos;
+        una distancia (por defecto 2) que determina el tamaño de la ventana para wsd_caracteristicas_colocacion;
+        errors (por defecto False), que si se establece en True imprime los errores;
+        confusion_matrix (por defecto False), que si se establece en True imprime una matriz de confusión.
+
+    Llamar a esta función divide los datos de senseval para la palabra en un conjunto de entrenamiento y un conjunto de prueba.
+
+    Luego entrena al entrenador en el conjunto de entrenamiento para crear un clasificador que realiza WSD en la palabra,
+    utilizando características (con número o distancia donde sea relevante).
+
+    Luego prueba el clasificador en el conjunto de prueba y imprime su precisión en ese conjunto.
+
+    Si error==True, entonces se imprimen los errores del clasificador sobre el conjunto de prueba.
+    Para cada error se registran cuatro cosas: (i) el número de ejemplo dentro de los datos de prueba; (ii) la oración en la que apareció la palabra objetivo, (iii) la etiqueta derivada (incorrecta) y (iv) la buena etiqueta.
+
+    Si confusion_matrix==True, entonces llamar a esta función imprime una matriz de confusión, donde cada celda [i,j]
+    indica cuántas veces se predijo la etiqueta j cuando la etiqueta correcta era i (por lo que las entradas diagonales indican etiquetas
+    que se predijeron correctamente).
+    """
+    
+    # Extraer instancias y sentidos
+    events = [(i, i.senses[0]) for i in senseval.instances(word)]
+    senses = list(set(l for (i, l) in events))
+    instances = [i for (i, l) in events]
+
+    # Extraer vocabulario
+    vocab = extract_vocab(instances, stopwords=stopwords_list, m=number)
+
+    # Dividir las instancias en conjunto de entrenamiento y prueba
+    n = len(events)
+    random.seed(5444522)
+    random.shuffle(events)
+    training_data = events[:int(0.8 * n)]
+    test_data = events[int(0.8 * n):n]
+    
+    # Entrenar el clasificador
+    classifier = NaiveBayesClassifier.train([(features(i, vocab, distance), label) for (i, label) in training_data]) 
+    
+    # Evaluar el clasificador
+    good = [label for (i, label) in test_data]
+    derived = [classifier.classify(features(i, vocab, distance)) for (i, label) in test_data]
+    
+    # Calcular precisión
+    acc = sum(1 for i in range(len(good)) if good[i] == derived[i]) / len(good)
+    print('Accuracy: %6.4f' % acc)
+    
+    if errors:
+        print('Errores: ')
+        errores = []
+        for (i, label) in test_data:
+            # Clasificar la instancia
+            guess = classifier.classify(features(i, vocab, distance))
+            if guess != label:
+                con = i.context
+                position = i.position
+                item_number = str(test_data.index((i, label)))
+                word_list = [word for (word, tag) in con]
+                hard_highlighted = word_list[position].upper()
+                word_list_highlighted = word_list[:position] + [hard_highlighted] + word_list[position + 1:]
+                sentence = ' '.join(word_list_highlighted)
+                errores.append([item_number, sentence, guess, label])
+        error_number = len(errores)
+        
+        print(f'\n\nThere are {error_number} errors!\n----------------------------\n')
+        
+        for error in errores:
+            print(f"{errores.index(error) + 1}) example number: {error[0]}\n    sentence: {error[1]}\n    guess: {error[2]};  label: {error[3]}\n\n") 
+        
+    if confusion_matrix:
+        print('Matriz de confusión: ')
+        # Crear la matriz de confusión
+        conf_matrix = nltk.ConfusionMatrix(good, derived)
+        print(conf_matrix)
+    
+    return classifier
